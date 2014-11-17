@@ -8,7 +8,6 @@ static uv_fs_t open_req;
 
 void read_cb(uv_fs_t* read_req) {
   int r = 0;
-  uv_loop_t *loop = uv_default_loop();
 
   if (read_req->result < 0) CHECK(read_req->result, "uv_fs_read callback");
 
@@ -18,7 +17,7 @@ void read_cb(uv_fs_t* read_req) {
 
   /* 5. Close the file descriptor */
   uv_fs_t close_req;
-  r = uv_fs_close(loop, &close_req, open_req.result, NULL);
+  r = uv_fs_close(read_req->loop, &close_req, open_req.result, NULL);
   if (r < 0) CHECK(r, "uv_fs_close");
 
   uv_fs_req_cleanup(&open_req);
@@ -40,7 +39,7 @@ int main() {
 
   /* 3. Use the file descriptor (the .result of the open_req) to read **aynchronously** from the file into the buffer */
   uv_fs_t read_req;
-  r = uv_fs_read(loop, &read_req, open_req.result, &uvbuffer, sizeof(buf), 0, read_cb);
+  r = uv_fs_read(loop, &read_req, open_req.result, &uvbuffer, 1, 0, read_cb);
   if (r < 0) CHECK(r, "uv_fs_read");
 
   uv_run(loop, UV_RUN_DEFAULT);
