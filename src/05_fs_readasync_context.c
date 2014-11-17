@@ -9,6 +9,7 @@ typedef struct context_struct {
 
 void read_cb(uv_fs_t* read_req) {
   int r = 0;
+  
   if (read_req->result < 0) CHECK(read_req->result, "uv_fs_read callback");
 
   /* extracting our context from the read_req */
@@ -22,12 +23,14 @@ void read_cb(uv_fs_t* read_req) {
 
   /* 5. Close the file descriptor (synchronously) */
   uv_fs_t close_req;
+  r = uv_fs_close(read_req->loop, &close_req, context->open_req->result, NULL);
   if (r < 0) CHECK(abs(r), "uv_fs_close");
 
   /* cleanup all requests and context */
   uv_fs_req_cleanup(context->open_req);
   uv_fs_req_cleanup(read_req);
   uv_fs_req_cleanup(&close_req);
+  
   free(context);
 }
 
@@ -42,14 +45,32 @@ void init(uv_loop_t *loop) {
   context->open_req  = open_req;
 
   /* 1. Open file */
+  r = uv_fs_open(loop, open_req, filename, O_RDONLY, S_IRUSR, NULL);
   if (r < 0) CHECK(r, "uv_fs_open");
 
   /* 2. Create buffer and initialize it to turn it into a a uv_buf_t */
+
+  // MAJOR FAIL HERE!
+  //  char buf[BUF_SIZE];
+  //  uv_buf_t uvbuffer = uv_buf_init(buf, sizeof(buf));
+
+  // resulted in:
+  
+//  INFO  This is the magic we are looking for!   at read_cb (05_fs_readasync_context.c:20)
+//    05_fs_readasync_context(25964,0x7fff7312c300) malloc: *** error for object 0x7fff5f0e6860: pointer being freed was not allocated
+//      *** set a breakpoint in malloc_error_break to debug
+//      Abort trap: 6
+  
+  // from the solution! :/ didnt know I had to malloc the buf...
+  size_t buf_len = sizeof(char) * BUF_SIZE;
+  char *buf = malloc(buf_len);
+  uv_buf_t uvbuffer = uv_buf_init(buf, buf_len);
 
   /* allow us to access the context inside read_cb */
   read_req->data = context;
 
   /* 3. Read from the file into the buffer */
+  r = uv_fs_read(loop, read_req, open_req->result, &uvbuffer, 1, 0, read_cb);
   if (r < 0) CHECK(r, "uv_fs_read");
 }
 
